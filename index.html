@@ -237,6 +237,33 @@
   .preset-pill .del { color: var(--muted); font-size: 14px; line-height: 1; padding: 0 2px; }
   .preset-pill .del:hover { color: var(--hot-2); }
 
+  /* Quick tempo shortcuts */
+  .quick-chips { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .quick-chips .chip { padding: 8px 14px; font-size: 13px; }
+
+  /* Tempo ramp */
+  .ramp-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .ramp-row label { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--muted); font-weight: 600; }
+  .ramp-row input[type=number] {
+    width: 58px; padding: 7px 6px; border-radius: 10px;
+    background: #0f1420; border: 1px solid var(--line); color: var(--text);
+    font-size: 14px; font-weight: 700; text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .ramp-row input[type=number]:disabled { opacity: .45; }
+
+  /* Collapsible advanced panel */
+  .more-toggle {
+    width: 100%; padding: 12px; border-radius: 14px;
+    background: transparent; border: 1px dashed var(--line);
+    color: var(--muted); font-size: 13.5px; font-weight: 700; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    transition: color .15s ease, border-color .15s ease;
+  }
+  .more-toggle:hover { color: var(--text); border-color: var(--accent); }
+  .more-panel { display: none; flex-direction: column; gap: 14px; }
+  .more-panel.open { display: flex; }
+
   .footnote { text-align: center; font-size: 12px; color: var(--muted); margin-top: 18px; line-height: 1.6; }
   .footnote b { color: var(--accent); }
 
@@ -343,31 +370,28 @@
         <input type="range" id="tempoRange" min="40" max="220" value="120">
       </div>
 
+      <div class="quick-chips" id="quickTempoChips"></div>
+
       <div class="group">
         <div class="group-label">拍号</div>
         <div class="chips" id="timeSigChips"></div>
       </div>
 
       <div class="group">
-        <div class="group-label">音色</div>
-        <div class="chips" id="soundChips"></div>
+        <div class="group-label">预备拍 · 开始前先数几拍</div>
+        <div class="chips" id="countInChips"></div>
       </div>
 
       <div class="group">
         <div class="group-label">
-          细分
-          <span class="lock" id="subLock"></span>
+          渐进变速
+          <span class="lock" id="rampLock"></span>
         </div>
-        <div class="chips" id="subChips"></div>
-      </div>
-
-      <div class="group">
-        <div class="group-label">
-          强弱
-          <button class="chip" id="accentToggle">重音</button>
-        </div>
-        <div class="tempo-slider">
-          <input type="range" id="volumeRange" min="0" max="100" value="80">
+        <div class="ramp-row">
+          <button class="chip" id="rampToggle">开启</button>
+          <label>到 <input type="number" id="rampTarget" min="20" max="300" step="1" value="140"> BPM</label>
+          <label>每 <input type="number" id="rampBars" min="1" max="32" step="1" value="4"> 小节</label>
+          <label>+ <input type="number" id="rampStep" min="1" max="20" step="1" value="2"></label>
         </div>
       </div>
 
@@ -380,22 +404,53 @@
         <span style="width:58px"></span>
       </div>
 
-      <div class="presets">
-        <div class="group-label">
-          我的预设
-          <button class="save-btn" id="savePreset">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg>
-            保存当前
-          </button>
+      <button class="more-toggle" id="moreToggle">更多设置（音色 · 细分 · 音量 · 预设）</button>
+
+      <div class="more-panel" id="morePanel">
+        <div class="group">
+          <div class="group-label">音色</div>
+          <div class="chips" id="soundChips"></div>
         </div>
-        <div class="preset-list" id="presetList"></div>
+
+        <div class="group">
+          <div class="group-label">
+            细分 · 每拍几下
+            <span class="lock" id="subLock"></span>
+          </div>
+          <div class="chips" id="subChips"></div>
+        </div>
+
+        <div class="group">
+          <div class="group-label">音量</div>
+          <div class="tempo-slider">
+            <input type="range" id="volumeRange" min="0" max="100" value="80">
+          </div>
+        </div>
+
+        <div class="group">
+          <div class="group-label">重音 · 强拍更响</div>
+          <div class="chips">
+            <button class="chip" id="accentToggle">重音 开</button>
+          </div>
+        </div>
+
+        <div class="presets">
+          <div class="group-label">
+            我的预设
+            <button class="save-btn" id="savePreset">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg>
+              保存当前
+            </button>
+          </div>
+          <div class="preset-list" id="presetList"></div>
+        </div>
       </div>
     </div>
   </section>
 
   <p class="footnote">
-    免费版即可流畅使用。<b>PRO</b> 一次买断，解锁全部拍号 / 音色 / 细分与预设。<br>
-    演示版可在界面内直接解锁。
+    免费版即可完整使用：节拍、预备拍、常用拍号与音色。<br>
+    <b>PRO</b> 一次买断 ¥6，解锁渐进变速、全部拍号 / 音色 / 细分与预设。
   </p>
 </div>
 
@@ -408,6 +463,7 @@
     </h2>
     <div class="price"><b>¥6</b><span> · 一次买断，永久使用</span></div>
     <ul class="benefits">
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>渐进变速：每几小节自动提速，练琴提速神器</li>
       <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>全部拍号：5/4、7/8、9/8、12/8 等</li>
       <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>全部音色：鼓、鼓边、牛铃、木鱼</li>
       <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>三连音 / 十六分音符细分</li>
@@ -435,6 +491,8 @@
     sound: 'classic',
     volume: 0.8,
     accentOn: true,
+    countInBars: 0,          // 0 = off, 1 or 2 bars of count-in
+    ramp: { on: false, start: 120, target: 140, bars: 4, step: 2 },
     isPro: false,
     accentPattern: []
   };
@@ -460,10 +518,10 @@
   ];
 
   const SUBS = [
-    { id: 1, name: '四分', pro: false },
-    { id: 2, name: '八分', pro: false },
-    { id: 3, name: '三连', pro: true },
-    { id: 4, name: '十六', pro: true },
+    { id: 1, name: '1 下', pro: false },
+    { id: 2, name: '2 下', pro: false },
+    { id: 3, name: '3 下', pro: true },
+    { id: 4, name: '4 下', pro: true },
   ];
 
   // ---------- DOM ----------
@@ -482,7 +540,11 @@
     proBadge: $('proBadge'), proBadgeText: $('proBadgeText'),
     savePreset: $('savePreset'), presetList: $('presetList'),
     subLock: $('subLock'), toast: $('toast'),
-    eqMeters: $('eqMeters')
+    eqMeters: $('eqMeters'),
+    quickTempoChips: $('quickTempoChips'), countInChips: $('countInChips'),
+    rampToggle: $('rampToggle'), rampTarget: $('rampTarget'),
+    rampBars: $('rampBars'), rampStep: $('rampStep'), rampLock: $('rampLock'),
+    moreToggle: $('moreToggle'), morePanel: $('morePanel')
   };
 
   // ---------- Audio engine (lookahead scheduler, sample-accurate) ----------
@@ -492,6 +554,8 @@
   const SCHEDULE_AHEAD = 0.12;  // s
   let nextPulseTime = 0;
   let currentPulse = 0;
+  let countInLeft = 0;
+  let countInTotal = 0;
   let schedTimer = null;
 
   function ctx() {
@@ -613,13 +677,57 @@
     const secPerPulse = secPerBeat / state.subdivision;
     nextPulseTime += secPerPulse;
     currentPulse++;
-    if (currentPulse >= totalPulses()) currentPulse = 0;
+    if (currentPulse >= totalPulses()) {
+      currentPulse = 0;
+      onBarComplete();
+    }
+  }
+
+  // ---------- 渐进变速 (PRO): raise tempo every N bars ----------
+  let barsPlayed = 0;
+  function onBarComplete() {
+    if (!state.ramp.on || !state.isPro || !state.isPlaying) return;
+    barsPlayed++;
+    const everyN = Math.max(1, Math.round(state.ramp.bars) || 4);
+    if (barsPlayed % everyN !== 0) return;
+    const step = Math.max(1, Math.round(state.ramp.step) || 2);
+    const target = Math.round(state.ramp.target) || state.tempo;
+    if (state.tempo < target) {
+      state.tempo = Math.min(target, state.tempo + step);
+      updateTempoUI();
+      scheduleSave();
+    }
+  }
+
+  // ---------- 倒数起拍: soften clicks before the pattern starts ----------
+  function triggerCountIn(time, idx) {
+    const c = audioCtx;
+    const isDown = (idx % state.timeSig.num) === 0;
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(isDown ? 1180 : 880, time);
+    const vol = state.volume * (isDown ? 0.5 : 0.3);
+    g.gain.setValueAtTime(0.0001, time);
+    g.gain.exponentialRampToValueAtTime(Math.max(vol, 0.0001), time + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.0001, time + 0.075);
+    osc.connect(g).connect(c.destination);
+    osc.start(time);
+    osc.stop(time + 0.12);
+    queueVisual(time, -1, idx);
   }
 
   function scheduler() {
     while (nextPulseTime < audioCtx.currentTime + SCHEDULE_AHEAD) {
-      triggerSound(nextPulseTime, currentPulse);
-      nextPulse();
+      if (countInLeft > 0) {
+        triggerCountIn(nextPulseTime, countInTotal - countInLeft);
+        nextPulseTime += 60.0 / state.tempo;
+        countInLeft--;
+        if (countInLeft === 0) currentPulse = 0;
+      } else {
+        triggerSound(nextPulseTime, currentPulse);
+        nextPulse();
+      }
     }
     schedTimer = setTimeout(scheduler, LOOKAHEAD);
   }
@@ -628,6 +736,13 @@
     computeAccentPattern();
     const c = ctx();
     currentPulse = 0;
+    barsPlayed = 0;
+    if (state.ramp.on && state.isPro) {
+      state.tempo = Math.round(state.ramp.start) || state.tempo;
+      updateTempoUI();
+    }
+    countInTotal = state.countInBars > 0 ? state.countInBars * state.timeSig.num : 0;
+    countInLeft = countInTotal;
     nextPulseTime = c.currentTime + 0.06;
     schedTimer = setTimeout(scheduler, LOOKAHEAD);
     setPlaying(true);
@@ -635,6 +750,8 @@
 
   function stop() {
     if (schedTimer) { clearTimeout(schedTimer); schedTimer = null; }
+    countInLeft = 0;
+    countInTotal = 0;
     setPlaying(false);
     if (audioCtx) audioCtx.suspend();
   }
@@ -654,9 +771,9 @@
   }
 
   // ---------- Visuals (canvas beat ring synced to audio clock) ----------
-  let visNotes = []; // {time, pulse}
-  function queueVisual(time, pulse) {
-    visNotes.push({ time: time, pulse: pulse });
+  let visNotes = []; // {time, pulse, countIdx}
+  function queueVisual(time, pulse, countIdx) {
+    visNotes.push({ time: time, pulse: pulse, countIdx: countIdx });
   }
 
   const canvas = els.canvas;
@@ -678,7 +795,7 @@
     // pop visual notes due
     while (visNotes.length && visNotes[0].time <= now) {
       const v = visNotes.shift();
-      flashPulse(v.pulse);
+      flashPulse(v.pulse, v.countIdx);
     }
     requestAnimationFrame(draw);
   }
@@ -691,8 +808,14 @@
 
   let lastPulse = -1;
   let flashTimer = null;
-  function flashPulse(pulse) {
+  function flashPulse(pulse, countIdx) {
     lastPulse = pulse;
+    if (countIdx !== undefined && countIdx !== null) {
+      // count-in: show a countdown in the centre
+      els.currentBeat.textContent = String(countInTotal - countIdx);
+      animateEq();
+      return;
+    }
     const beat = Math.floor(pulse / state.subdivision) + 1;
     els.currentBeat.textContent = String(beat);
     animateEq();
@@ -788,12 +911,86 @@
     els.tempoRange.value = state.tempo;
     els.tempoRange.style.setProperty('--fill',
       ((state.tempo - range.min) / (range.max - range.min) * 100) + '%');
+    Array.from(els.quickTempoChips.children).forEach(b => {
+      b.classList.toggle('active', Number(b.textContent) === state.tempo);
+    });
   }
 
   function setTempo(t) {
     state.tempo = Math.round(Math.min(300, Math.max(20, t)));
     clampTempo();
+    if (state.ramp.on && !state.isPlaying) state.ramp.start = state.tempo;
     updateTempoUI();
+    scheduleSave();
+  }
+
+  // ---------- 速度快捷 ----------
+  const QUICK_TEMPOS = [60, 80, 100, 120];
+  function renderQuickTempos() {
+    els.quickTempoChips.innerHTML = '';
+    QUICK_TEMPOS.forEach(v => {
+      const b = document.createElement('button');
+      b.className = 'chip' + (state.tempo === v ? ' active' : '');
+      b.textContent = String(v);
+      b.onclick = () => setTempo(v);
+      els.quickTempoChips.appendChild(b);
+    });
+  }
+
+  // ---------- 预备拍 ----------
+  function renderCountInChips() {
+    const opts = [{ v: 0, label: '关闭' }, { v: 1, label: '1 小节' }, { v: 2, label: '2 小节' }];
+    els.countInChips.innerHTML = '';
+    opts.forEach(o => {
+      const b = document.createElement('button');
+      b.className = 'chip' + (state.countInBars === o.v ? ' active' : '');
+      b.textContent = o.label;
+      b.onclick = () => { state.countInBars = o.v; renderCountInChips(); scheduleSave(); };
+      els.countInChips.appendChild(b);
+    });
+  }
+
+  // ---------- 渐进变速 UI ----------
+  function renderRamp() {
+    const locked = !state.isPro;
+    els.rampToggle.classList.toggle('active', state.ramp.on);
+    els.rampToggle.textContent = state.ramp.on ? '已开启' : '开启';
+    els.rampLock.textContent = locked ? 'PRO' : '';
+    els.rampLock.style.display = locked ? 'inline-flex' : 'none';
+    els.rampTarget.value = state.ramp.target;
+    els.rampBars.value = state.ramp.bars;
+    els.rampStep.value = state.ramp.step;
+    [els.rampTarget, els.rampBars, els.rampStep].forEach(i => { i.disabled = locked; });
+  }
+
+  // ---------- 记住上次设置 ----------
+  const SETTINGS_KEY = 'zhunpai_settings';
+  let saveTimer = null;
+  function scheduleSave() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveSettings, 250);
+  }
+  function saveSettings() {
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+        tempo: state.tempo, sig: state.timeSig, sub: state.subdivision,
+        sound: state.sound, vol: state.volume, acc: state.accentOn,
+        countIn: state.countInBars, ramp: state.ramp
+      }));
+    } catch(e){}
+  }
+  function loadSettings() {
+    let s = null;
+    try { s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null'); } catch(e){}
+    if (!s) return;
+    if (typeof s.tempo === 'number') state.tempo = s.tempo;
+    if (s.sig && s.sig.num) state.timeSig = s.sig;
+    if (s.sub) state.subdivision = s.sub;
+    if (s.sound) state.sound = s.sound;
+    if (typeof s.vol === 'number') state.volume = s.vol;
+    if (typeof s.acc === 'boolean') state.accentOn = s.acc;
+    if (typeof s.countIn === 'number') state.countInBars = s.countIn;
+    if (s.ramp) state.ramp = Object.assign(state.ramp, s.ramp);
   }
 
   function renderTimeSigChips() {
@@ -854,8 +1051,10 @@
     renderTimeSigChips();
     renderSoundChips();
     renderSubChips();
+    renderRamp();
     computeAccentPattern();
     updateTempoUI();
+    scheduleSave();
   }
 
   function refreshVisual() {
@@ -892,10 +1091,12 @@
     state.accentOn = !state.accentOn;
     computeAccentPattern();
     renderAccent();
+    scheduleSave();
   });
 
   els.volumeRange.addEventListener('input', e => {
     state.volume = Number(e.target.value) / 100;
+    scheduleSave();
   });
 
   // ---------- Pro modal ----------
@@ -1023,24 +1224,67 @@
   });
 
   // ---------- Controls wiring ----------
-  els.tempoMinus.addEventListener('click', () => setTempo(state.tempo - 1));
-  els.tempoPlus.addEventListener('click', () => setTempo(state.tempo + 1));
+  // 长按连续变速
+  let lastPointerFire = 0;
+  function bindRepeat(btn, fn) {
+    let holdTimer = null, repTimer = null;
+    const stopRepeat = () => { clearTimeout(holdTimer); clearInterval(repTimer); holdTimer = repTimer = null; };
+    btn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      lastPointerFire = Date.now();
+      fn();
+      holdTimer = setTimeout(() => { repTimer = setInterval(fn, 70); }, 380);
+    });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => btn.addEventListener(ev, stopRepeat));
+    btn.addEventListener('click', () => {
+      if (Date.now() - lastPointerFire < 600) return;  // already handled by pointerdown
+      fn();
+    });
+  }
+  bindRepeat(els.tempoMinus, () => setTempo(state.tempo - 1));
+  bindRepeat(els.tempoPlus, () => setTempo(state.tempo + 1));
   els.tempoRange.addEventListener('input', e => setTempo(Number(e.target.value)));
-  els.tempoValue.addEventListener('dblclick', () => {
+  els.tempoValue.addEventListener('click', () => {
     const v = prompt('输入 BPM（20–300）：', state.tempo);
     if (v) setTempo(Number(v));
   });
   els.playBtn.addEventListener('click', togglePlay);
 
+  // 更多设置面板
+  els.moreToggle.addEventListener('click', () => {
+    const open = els.morePanel.classList.toggle('open');
+    els.moreToggle.textContent = open ? '收起设置 ▲' : '更多设置（音色 · 细分 · 音量 · 预设）';
+  });
+
+  // 渐进变速
+  els.rampToggle.addEventListener('click', () => {
+    if (!state.isPro) { showOverlay(); return; }
+    state.ramp.on = !state.ramp.on;
+    if (state.ramp.on) {
+      state.ramp.start = state.tempo;
+      if (state.ramp.target <= state.tempo) state.ramp.target = Math.min(300, state.tempo + 20);
+    }
+    renderRamp();
+    scheduleSave();
+    toast(state.ramp.on ? '渐进变速已开启：' + state.tempo + ' → ' + state.ramp.target + ' BPM' : '渐进变速已关闭');
+  });
+  els.rampTarget.addEventListener('input', e => { state.ramp.target = Number(e.target.value); scheduleSave(); });
+  els.rampBars.addEventListener('input', e => { state.ramp.bars = Math.max(1, Number(e.target.value)); scheduleSave(); });
+  els.rampStep.addEventListener('input', e => { state.ramp.step = Math.max(1, Number(e.target.value)); scheduleSave(); });
+
   // ---------- Init ----------
   function init() {
     loadPro();
+    loadSettings();
     renderPro();
+    renderQuickTempos();
+    renderCountInChips();
     refresh();
     renderAccent();
     sizeCanvas();
     draw();
     updateTempoUI();
+    els.volumeRange.value = Math.round(state.volume * 100);
     window.addEventListener('resize', () => { sizeCanvas(); refreshVisual(); });
   }
   init();
