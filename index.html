@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#0b0e14">
-<title>Beatlock · 音乐节拍器</title>
+<title>准拍 · 音乐节拍器</title>
 <style>
   :root {
     --bg: #0b0e14;
@@ -300,11 +300,11 @@
   <header>
     <div class="brand">
       <div class="logo">
-        <svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M5 12h14M7 7l10 10M17 7L7 17" stroke="#0b2530" stroke-width="2.6" stroke-linecap="round"/></svg>
+        <svg viewBox="0 0 48 48" fill="none" stroke="#0b2530" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 36 L24 10 L31.5 36"/><path d="M12.5 36 H35.5"/><path d="M24 16.5 L21 32.5"/></svg>
       </div>
       <div>
-        <h1>Beatlock</h1>
-        <div class="sub">音乐节拍器 · 精准 · 轻付费</div>
+        <h1>准拍</h1>
+        <div class="sub">音乐节拍器 · 精准 · 稳定</div>
       </div>
     </div>
     <button class="pro-badge" id="proBadge">
@@ -919,13 +919,13 @@
 
   function unlockPro() {
     state.isPro = true;
-    try { localStorage.setItem('beatlock_pro', '1'); } catch(e){}
+    try { localStorage.setItem('zhunpai_pro', '1'); } catch(e){}
     renderPro();
     refresh();
     updateTempoUI();
   }
   function loadPro() {
-    try { state.isPro = localStorage.getItem('beatlock_pro') === '1'; } catch(e){}
+    try { state.isPro = localStorage.getItem('zhunpai_pro') === '1'; } catch(e){}
   }
   function renderPro() {
     els.proBadge.classList.toggle('on', state.isPro);
@@ -934,10 +934,10 @@
 
   // ---------- Presets ----------
   function getPresets() {
-    try { return JSON.parse(localStorage.getItem('beatlock_presets') || '[]'); } catch(e){ return []; }
+    try { return JSON.parse(localStorage.getItem('zhunpai_presets') || '[]'); } catch(e){ return []; }
   }
   function savePresets(arr) {
-    try { localStorage.setItem('beatlock_presets', JSON.stringify(arr)); } catch(e){}
+    try { localStorage.setItem('zhunpai_presets', JSON.stringify(arr)); } catch(e){}
   }
   els.savePreset.addEventListener('click', () => {
     if (!state.isPro) { showOverlay(); return; }
