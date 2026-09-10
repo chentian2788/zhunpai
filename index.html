@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0b0e14">
+<title>Beatlock · 音乐节拍器</title>
+<style>
+  :root {
+    --bg: #0b0e14;
+    --bg-2: #11151f;
+    --panel: #161b28;
+    --panel-2: #1c2233;
+    --line: #262d3f;
+    --text: #e8ecf4;
+    --muted: #8b94a8;
+    --accent: #5eead4;
+    --accent-2: #22d3ee;
+    --accent-glow: rgba(94, 234, 212, 0.45);
+    --hot: #f59e0b;
+    --hot-2: #ef4444;
+    --hit: #7c3aed;
+    --shine: linear-gradient(135deg, #5eead4, #22d3ee, #7c3aed);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body { height: 100%; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background:
+      radial-gradient(1200px 700px at 50% -10%, #1b2436 0%, transparent 60%),
+      radial-gradient(900px 600px at 100% 100%, #141b2b 0%, transparent 55%),
+      var(--bg);
+    color: var(--text);
+    min-height: 100dvh;
+    overflow-x: hidden;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .app {
+    max-width: 560px;
+    margin: 0 auto;
+    padding: 18px 18px 40px;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 2px 16px;
+  }
+
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .logo {
+    width: 40px; height: 40px; border-radius: 13px;
+    background: var(--shine);
+    display: grid; place-items: center;
+    box-shadow: 0 6px 22px var(--accent-glow);
+  }
+  .logo svg { width: 22px; height: 22px; }
+  .brand h1 { font-size: 18px; font-weight: 700; letter-spacing: 0.3px; }
+  .brand .sub { font-size: 11.5px; color: var(--muted); margin-top: 1px; }
+
+  .pro-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 7px 13px; border-radius: 999px;
+    font-size: 12.5px; font-weight: 700;
+    background: linear-gradient(135deg, #f7c948, #f59e0b);
+    color: #3a2600; cursor: pointer; border: none;
+    box-shadow: 0 6px 18px rgba(245, 158, 11, 0.3);
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .pro-badge:active { transform: scale(0.95); }
+  .pro-badge.on { background: linear-gradient(135deg, #5eead4, #22d3ee); color: #07303d; }
+
+  /* Stage */
+  .stage {
+    position: relative;
+    border-radius: 26px;
+    padding: 18px;
+    background: linear-gradient(180deg, var(--panel), var(--bg-2));
+    border: 1px solid var(--line);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .beat-readout {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 4px 12px;
+  }
+  .beat-count {
+    display: flex; align-items: baseline; gap: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+  .beat-count .current { font-size: 30px; font-weight: 800; color: var(--accent); }
+  .beat-count .total { font-size: 16px; color: var(--muted); font-weight: 600; }
+  .time-sig-label { font-size: 13px; color: var(--muted); font-weight: 600; }
+  .eq-meters { display: flex; align-items: flex-end; gap: 4px; height: 26px; }
+  .eq-meters i { width: 4px; border-radius: 3px; background: var(--accent); opacity: .35; }
+
+  canvas#beatCanvas {
+    width: 100%;
+    max-width: 340px;
+    aspect-ratio: 1 / 1;
+    display: block;
+  }
+
+  .tap-hint { margin-top: 8px; font-size: 12.5px; color: var(--muted); }
+
+  /* Controls */
+  .controls { margin-top: 14px; display: flex; flex-direction: column; gap: 14px; }
+
+  .tempo-row {
+    display: flex; align-items: center; justify-content: center; gap: 18px;
+  }
+  .tempo-btn {
+    width: 54px; height: 54px; border-radius: 18px;
+    background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--line);
+    font-size: 24px; font-weight: 700;
+    display: grid; place-items: center; cursor: pointer;
+    transition: transform .12s ease, background .15s ease, border-color .15s ease;
+  }
+  .tempo-btn:active { transform: scale(0.9); background: #242c42; border-color: var(--accent); }
+
+  .tempo-display { text-align: center; min-width: 150px; }
+  .tempo-value {
+    font-size: 74px; font-weight: 800; line-height: 0.9;
+    font-variant-numeric: tabular-nums;
+    background: var(--shine);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    filter: drop-shadow(0 4px 16px rgba(94,234,212,0.15));
+  }
+  .tempo-unit { font-size: 14px; color: var(--muted); font-weight: 600; margin-top: 4px; letter-spacing: 1px; }
+
+  .tempo-slider { padding: 2px 8px; }
+  input[type=range] {
+    width: 100%; -webkit-appearance: none; appearance: none;
+    height: 8px; border-radius: 999px;
+    background: linear-gradient(90deg, var(--accent) var(--fill, 50%), var(--line) var(--fill, 50%));
+    outline: none; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: #fff; border: 3px solid var(--accent-2);
+    box-shadow: 0 2px 10px rgba(34,211,238,.4);
+    cursor: grab;
+  }
+  input[type=range]:active::-webkit-slider-thumb { cursor: grabbing; }
+
+  /* Chip groups */
+  .group { display: flex; flex-direction: column; gap: 8px; }
+  .group-label {
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 12px; color: var(--muted); font-weight: 700; letter-spacing: .6px;
+    text-transform: uppercase;
+  }
+  .group-label .lock { cursor: pointer; display: inline-flex; align-items: center; gap: 3px; font-weight: 700; color: var(--hot); }
+  .group-label .lock svg { width: 13px; height: 13px; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    padding: 10px 15px; border-radius: 13px;
+    background: var(--panel-2); border: 1px solid var(--line);
+    color: var(--text); font-size: 14px; font-weight: 600;
+    cursor: pointer; position: relative;
+    transition: background .15s ease, border-color .15s ease, color .15s ease, transform .12s ease;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .chip:active { transform: scale(0.96); }
+  .chip.active {
+    background: linear-gradient(135deg, rgba(94,234,212,.18), rgba(34,211,238,.14));
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .chip .mini-lock { color: var(--hot); display: inline-flex; }
+  .chip .mini-lock svg { width: 12px; height: 12px; }
+  .chip.locked { color: var(--muted); }
+
+  /* Play button */
+  .play-row { display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 4px; }
+  .tap-btn {
+    width: 58px; height: 58px; border-radius: 50%;
+    background: var(--panel-2); border: 1px solid var(--line);
+    color: var(--text); font-size: 12px; font-weight: 700;
+    cursor: pointer; display: grid; place-items: center;
+    transition: transform .12s ease, border-color .15s ease;
+  }
+  .tap-btn:active { transform: scale(0.92); border-color: var(--accent); }
+  .play-btn {
+    width: 88px; height: 88px; border-radius: 50%;
+    background: var(--shine); border: none; cursor: pointer;
+    display: grid; place-items: center;
+    box-shadow: 0 14px 42px var(--accent-glow), inset 0 1px 0 rgba(255,255,255,.4);
+    transition: transform .14s ease, box-shadow .2s ease;
+  }
+  .play-btn:active { transform: scale(0.94); }
+  .play-btn svg { width: 38px; height: 38px; }
+  .play-btn .play-icon { display: block; }
+  .play-btn .stop-icon { display: none; }
+  .play-btn.playing .play-icon { display: none; }
+  .play-btn.playing .stop-icon { display: block; }
+  .play-btn.playing { box-shadow: 0 12px 34px rgba(239,68,68,.35), inset 0 1px 0 rgba(255,255,255,.3); }
+
+  .presets { border-top: 1px solid var(--line); padding-top: 14px; }
+  .save-btn {
+    padding: 9px 14px; border-radius: 12px;
+    background: var(--panel-2); border: 1px solid var(--line);
+    color: var(--accent); font-size: 13px; font-weight: 700; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+    transition: transform .12s ease, border-color .15s ease;
+  }
+  .save-btn:active { transform: scale(0.95); }
+  .preset-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .preset-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 11px; border-radius: 999px;
+    background: #202840; border: 1px solid var(--line);
+    font-size: 12.5px; font-weight: 600; color: var(--text); cursor: pointer;
+    transition: transform .12s ease, border-color .15s ease, background .15s ease;
+  }
+  .preset-pill:hover { border-color: var(--accent); }
+  .preset-pill:active { transform: scale(0.95); }
+  .preset-pill .del { color: var(--muted); font-size: 14px; line-height: 1; padding: 0 2px; }
+  .preset-pill .del:hover { color: var(--hot-2); }
+
+  .footnote { text-align: center; font-size: 12px; color: var(--muted); margin-top: 18px; line-height: 1.6; }
+  .footnote b { color: var(--accent); }
+
+  /* Modal */
+  .overlay {
+    position: fixed; inset: 0; z-index: 50;
+    background: rgba(5,8,14,0.72); backdrop-filter: blur(8px);
+    display: none; align-items: center; justify-content: center; padding: 20px;
+    opacity: 0; transition: opacity .2s ease;
+  }
+  .overlay.show { display: flex; opacity: 1; }
+  .sheet {
+    width: 100%; max-width: 400px;
+    background: linear-gradient(180deg, #1a2132, #121724);
+    border: 1px solid var(--line);
+    border-radius: 24px; padding: 26px 24px 22px;
+    box-shadow: 0 30px 80px rgba(0,0,0,.5);
+    transform: translateY(16px); transition: transform .25s cubic-bezier(.2,.7,.2,1);
+  }
+  .overlay.show .sheet { transform: translateY(0); }
+  .sheet h2 { font-size: 22px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+  .sheet h2 .crown { width: 22px; height: 22px; }
+  .sheet .price { margin: 14px 0 4px; font-size: 15px; }
+  .sheet .price b { font-size: 34px; font-weight: 800; color: var(--accent); }
+  .sheet .price span { color: var(--muted); }
+  .benefits { list-style: none; margin: 16px 0 20px; display: flex; flex-direction: column; gap: 11px; }
+  .benefits li { display: flex; gap: 10px; font-size: 14px; color: var(--text); align-items: flex-start; line-height: 1.45; }
+  .benefits li svg { width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; color: var(--accent); }
+  .sheet .cta {
+    width: 100%; padding: 16px; border-radius: 16px; border: none;
+    background: var(--shine); color: #06232b; font-size: 17px; font-weight: 800;
+    cursor: pointer; transition: transform .12s ease;
+  }
+  .sheet .cta:active { transform: scale(0.98); }
+  .sheet .note { text-align: center; font-size: 11px; color: var(--muted); margin-top: 12px; line-height: 1.5; }
+  .sheet .close {
+    margin-top: 14px; width: 100%; background: none; border: none;
+    color: var(--muted); font-size: 14px; cursor: pointer; padding: 6px;
+  }
+  .sheet .close:hover { color: var(--text); }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%) translateY(30px);
+    background: #1c2436; border: 1px solid var(--line); color: var(--text);
+    padding: 12px 18px; border-radius: 14px; font-size: 14px; font-weight: 600;
+    opacity: 0; pointer-events: none; z-index: 60;
+    transition: transform .25s cubic-bezier(.2,.7,.2,1), opacity .2s ease;
+    box-shadow: 0 12px 30px rgba(0,0,0,.4);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  @media (max-width: 380px) {
+    .tempo-value { font-size: 64px; }
+    .play-btn { width: 78px; height: 78px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M12 3v18M5 12h14M7 7l10 10M17 7L7 17" stroke="#0b2530" stroke-width="2.6" stroke-linecap="round"/></svg>
+      </div>
+      <div>
+        <h1>Beatlock</h1>
+        <div class="sub">音乐节拍器 · 精准 · 轻付费</div>
+      </div>
+    </div>
+    <button class="pro-badge" id="proBadge">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 5.3 5.6.4-4.3 3.7 1.3 5.5L12 14.5 7 16.9l1.3-5.5L4 7.7l5.6-.4z"/></svg>
+      <span id="proBadgeText">PRO</span>
+    </button>
+  </header>
+
+  <section class="stage">
+    <div class="beat-readout">
+      <div class="beat-count">
+        <span class="current" id="currentBeat">0</span>
+        <span class="total" id="totalBeat">/ 4</span>
+      </div>
+      <div class="time-sig-label" id="timeSigLabel">4 / 4</div>
+      <div class="eq-meters" id="eqMeters">
+        <i></i><i></i><i></i><i></i><i></i>
+      </div>
+    </div>
+
+    <canvas id="beatCanvas"></canvas>
+
+    <div class="tap-hint" id="tapHint">点击 <b>TAP</b> 或用键盘 <b>空格</b> 开始 · <b>T</b> 打拍</div>
+
+    <div class="controls">
+      <div class="tempo-row">
+        <button class="tempo-btn" id="tempoMinus">−</button>
+        <div class="tempo-display">
+          <div class="tempo-value" id="tempoValue">120</div>
+          <div class="tempo-unit">BPM</div>
+        </div>
+        <button class="tempo-btn" id="tempoPlus">+</button>
+      </div>
+
+      <div class="tempo-slider">
+        <input type="range" id="tempoRange" min="40" max="220" value="120">
+      </div>
+
+      <div class="group">
+        <div class="group-label">拍号</div>
+        <div class="chips" id="timeSigChips"></div>
+      </div>
+
+      <div class="group">
+        <div class="group-label">音色</div>
+        <div class="chips" id="soundChips"></div>
+      </div>
+
+      <div class="group">
+        <div class="group-label">
+          细分
+          <span class="lock" id="subLock"></span>
+        </div>
+        <div class="chips" id="subChips"></div>
+      </div>
+
+      <div class="group">
+        <div class="group-label">
+          强弱
+          <button class="chip" id="accentToggle">重音</button>
+        </div>
+        <div class="tempo-slider">
+          <input type="range" id="volumeRange" min="0" max="100" value="80">
+        </div>
+      </div>
+
+      <div class="play-row">
+        <button class="tap-btn" id="tapBtn">TAP</button>
+        <button class="play-btn" id="playBtn">
+          <svg class="play-icon" viewBox="0 0 24 24" fill="#06232b"><path d="M8 5v14l11-7z"/></svg>
+          <svg class="stop-icon" viewBox="0 0 24 24" fill="#2b0606"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+        </button>
+        <span style="width:58px"></span>
+      </div>
+
+      <div class="presets">
+        <div class="group-label">
+          我的预设
+          <button class="save-btn" id="savePreset">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg>
+            保存当前
+          </button>
+        </div>
+        <div class="preset-list" id="presetList"></div>
+      </div>
+    </div>
+  </section>
+
+  <p class="footnote">
+    免费版即可流畅使用。<b>PRO</b> 一次买断，解锁全部拍号 / 音色 / 细分与预设。<br>
+    演示版可在界面内直接解锁。
+  </p>
+</div>
+
+<!-- Paywall Modal -->
+<div class="overlay" id="overlay">
+  <div class="sheet">
+    <h2>
+      <svg class="crown" viewBox="0 0 24 24" fill="url(#g)"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5eead4"/><stop offset="1" stop-color="#f59e0b"/></linearGradient></defs><path d="M3 7l4 4 5-6 5 6 4-4v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></svg>
+      解锁 PRO
+    </h2>
+    <div class="price"><b>¥6</b><span> · 一次买断，永久使用</span></div>
+    <ul class="benefits">
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>全部拍号：5/4、7/8、9/8、12/8 等</li>
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>全部音色：鼓、鼓边、牛铃、木鱼</li>
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>三连音 / 十六分音符细分</li>
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>完整速度范围：20–300 BPM</li>
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>保存 / 加载你的预设，最多 5 个</li>
+    </ul>
+    <button class="cta" id="buyBtn">立即解锁 · ¥6</button>
+    <button class="close" id="closeSheet">暂不需要</button>
+    <p class="note">当前为本地演示版，解锁即在本机永久生效。<br>上架后通过 App Store / 微信支付完成真实购买。</p>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- State ----------
+  const state = {
+    isPlaying: false,
+    tempo: 120,
+    timeSig: { num: 4, den: 4 },
+    subdivision: 1,          // pulses per beat
+    sound: 'classic',
+    volume: 0.8,
+    accentOn: true,
+    isPro: false,
+    accentPattern: []
+  };
+
+  const TIME_SIGS = [
+    { num: 2, den: 4, pro: false },
+    { num: 3, den: 4, pro: false },
+    { num: 4, den: 4, pro: false },
+    { num: 6, den: 8, pro: false },
+    { num: 5, den: 4, pro: true },
+    { num: 7, den: 8, pro: true },
+    { num: 9, den: 8, pro: true },
+    { num: 12, den: 8, pro: true },
+  ];
+
+  const SOUNDS = [
+    { id: 'classic', name: '古典木声', pro: false },
+    { id: 'beep', name: '电子哔', pro: false },
+    { id: 'wood', name: '木鱼', pro: true },
+    { id: 'drum', name: '鼓点', pro: true },
+    { id: 'rim', name: '鼓边', pro: true },
+    { id: 'cowbell', name: '牛铃', pro: true },
+  ];
+
+  const SUBS = [
+    { id: 1, name: '四分', pro: false },
+    { id: 2, name: '八分', pro: false },
+    { id: 3, name: '三连', pro: true },
+    { id: 4, name: '十六', pro: true },
+  ];
+
+  // ---------- DOM ----------
+  const $ = (id) => document.getElementById(id);
+  const els = {
+    playBtn: $('playBtn'), tapBtn: $('tapBtn'),
+    tempoValue: $('tempoValue'), tempoRange: $('tempoRange'),
+    tempoMinus: $('tempoMinus'), tempoPlus: $('tempoPlus'),
+    canvas: $('beatCanvas'),
+    currentBeat: $('currentBeat'), totalBeat: $('totalBeat'),
+    timeSigLabel: $('timeSigLabel'),
+    timeSigChips: $('timeSigChips'), soundChips: $('soundChips'), subChips: $('subChips'),
+    accentToggle: $('accentToggle'),
+    volumeRange: $('volumeRange'),
+    overlay: $('overlay'), buyBtn: $('buyBtn'), closeSheet: $('closeSheet'),
+    proBadge: $('proBadge'), proBadgeText: $('proBadgeText'),
+    savePreset: $('savePreset'), presetList: $('presetList'),
+    subLock: $('subLock'), toast: $('toast'),
+    eqMeters: $('eqMeters')
+  };
+
+  // ---------- Audio engine (lookahead scheduler, sample-accurate) ----------
+  let audioCtx = null;
+  let noiseBuffer = null;
+  const LOOKAHEAD = 25;         // ms
+  const SCHEDULE_AHEAD = 0.12;  // s
+  let nextPulseTime = 0;
+  let currentPulse = 0;
+  let schedTimer = null;
+
+  function ctx() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      createNoise();
+    }
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    return audioCtx;
+  }
+
+  function createNoise() {
+    const len = audioCtx.sampleRate * 1;
+    noiseBuffer = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+    const d = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  }
+
+  function totalPulses() {
+    return state.timeSig.num * state.subdivision;
+  }
+
+  function computeAccentPattern() {
+    const total = totalPulses();
+    const pat = new Array(total);
+    const base = state.accentOn ? 0.25 : 0.35;
+    for (let i = 0; i < total; i++) pat[i] = base;
+    pat[0] = 1.0; // downbeat
+    const { num, den } = state.timeSig;
+    const compound = den === 8 && num > 3;
+    if (compound) {
+      const step = 3 * state.subdivision;
+      for (let i = step; i < total; i += step) pat[i] = 0.72;
+    }
+    state.accentPattern = pat;
+  }
+
+  function pulseIsBeatStart(idx) {
+    return idx % state.subdivision === 0;
+  }
+
+  // Sound presets: role -> {type, freq, decay, gain, noise}
+  const SOUND_DEF = {
+    classic: {
+      accent: { type: 'sine', f: 1100, decay: 0.09, gain: 1.0 },
+      beat:   { type: 'sine', f: 760,  decay: 0.08, gain: 0.85 },
+      sub:    { type: 'sine', f: 620,  decay: 0.05, gain: 0.4 }
+    },
+    beep: {
+      accent: { type: 'triangle', f: 1320, decay: 0.18, gain: 1.0 },
+      beat:   { type: 'triangle', f: 990,  decay: 0.15, gain: 0.8 },
+      sub:    { type: 'triangle', f: 700,  decay: 0.09, gain: 0.4 }
+    },
+    wood: {
+      accent: { type: 'sine', f: 880, decay: 0.06, gain: 1.1, click: true },
+      beat:   { type: 'sine', f: 660, decay: 0.05, gain: 0.9, click: true },
+      sub:    { type: 'sine', f: 520, decay: 0.03, gain: 0.45, click: true }
+    },
+    drum: {
+      accent: { type: 'sine', f: 180, decay: 0.22, gain: 1.3, noise: 0.5 },
+      beat:   { type: 'sine', f: 150, decay: 0.18, gain: 1.0, noise: 0.4 },
+      sub:    { type: 'sine', f: 120, decay: 0.1,  gain: 0.5, noise: 0.25 }
+    },
+    rim: {
+      accent: { type: 'square', f: 2200, decay: 0.05, gain: 0.9, noise: 0.8 },
+      beat:   { type: 'square', f: 1700, decay: 0.045, gain: 0.75, noise: 0.7 },
+      sub:    { type: 'square', f: 1300, decay: 0.03, gain: 0.4, noise: 0.5 }
+    },
+    cowbell: {
+      accent: { type: 'sine', f: 560, decay: 0.25, gain: 1.0, twin: 840 },
+      beat:   { type: 'sine', f: 520, decay: 0.2,  gain: 0.8, twin: 780 },
+      sub:    { type: 'sine', f: 480, decay: 0.12, gain: 0.4, twin: 720 }
+    }
+  };
+
+  function triggerSound(time, idx) {
+    const level = state.accentPattern[idx % state.accentPattern.length];
+    const isBeat = pulseIsBeatStart(idx);
+    const role = !isBeat ? 'sub' : (level >= 0.9 ? 'accent' : 'beat');
+    const def = SOUND_DEF[state.sound][role];
+    if (!def) return;
+    const c = audioCtx;
+    const out = c.createGain();
+    const vol = state.volume * def.gain * (role === 'acc' || role === 'accent' ? 1 : 1);
+    out.gain.setValueAtTime(0.0001, time);
+    out.gain.exponentialRampToValueAtTime(Math.max(vol, 0.0001), time + 0.002);
+    out.gain.exponentialRampToValueAtTime(0.0001, time + def.decay);
+    out.connect(c.destination);
+
+    const osc = c.createOscillator();
+    osc.type = def.type;
+    osc.frequency.setValueAtTime(def.f, time);
+    if (def.twin) osc.frequency.setValueAtTime(def.twin, time + 0.002);
+    osc.connect(out);
+    osc.start(time);
+    osc.stop(time + def.decay + 0.02);
+
+    if (def.noise) {
+      const src = c.createBufferSource();
+      src.buffer = noiseBuffer;
+      const nf = c.createBiquadFilter();
+      nf.type = 'bandpass';
+      nf.frequency.value = def.twin ? 2000 : 1200;
+      nf.Q.value = 1.2;
+      const ng = c.createGain();
+      ng.gain.setValueAtTime(def.noise, time);
+      ng.gain.exponentialRampToValueAtTime(0.0001, time + Math.min(def.decay, 0.09));
+      src.connect(nf).connect(ng).connect(out);
+      src.start(time);
+      src.stop(time + 0.1);
+    }
+
+    // visual flash queued
+    queueVisual(time, idx);
+  }
+
+  function nextPulse() {
+    const secPerBeat = 60.0 / state.tempo;
+    const secPerPulse = secPerBeat / state.subdivision;
+    nextPulseTime += secPerPulse;
+    currentPulse++;
+    if (currentPulse >= totalPulses()) currentPulse = 0;
+  }
+
+  function scheduler() {
+    while (nextPulseTime < audioCtx.currentTime + SCHEDULE_AHEAD) {
+      triggerSound(nextPulseTime, currentPulse);
+      nextPulse();
+    }
+    schedTimer = setTimeout(scheduler, LOOKAHEAD);
+  }
+
+  function start() {
+    computeAccentPattern();
+    const c = ctx();
+    currentPulse = 0;
+    nextPulseTime = c.currentTime + 0.06;
+    schedTimer = setTimeout(scheduler, LOOKAHEAD);
+    setPlaying(true);
+  }
+
+  function stop() {
+    if (schedTimer) { clearTimeout(schedTimer); schedTimer = null; }
+    setPlaying(false);
+    if (audioCtx) audioCtx.suspend();
+  }
+
+  function setPlaying(v) {
+    state.isPlaying = v;
+    els.playBtn.classList.toggle('playing', v);
+    els.playBtn.setAttribute('aria-pressed', v);
+    if (!v) {
+      resetVisual();
+    }
+  }
+
+  function togglePlay() {
+    if (state.isPlaying) stop();
+    else start();
+  }
+
+  // ---------- Visuals (canvas beat ring synced to audio clock) ----------
+  let visNotes = []; // {time, pulse}
+  function queueVisual(time, pulse) {
+    visNotes.push({ time: time, pulse: pulse });
+  }
+
+  const canvas = els.canvas;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  function sizeCanvas() {
+    const s = canvas.clientWidth;
+    canvas.width = s * dpr;
+    canvas.height = s * dpr;
+  }
+
+  function draw() {
+    if (!audioCtx) {
+      // idle state: draw static ring
+      drawStatic();
+      requestAnimationFrame(draw);
+      return;
+    }
+    const now = audioCtx.currentTime;
+    // pop visual notes due
+    while (visNotes.length && visNotes[0].time <= now) {
+      const v = visNotes.shift();
+      flashPulse(v.pulse);
+    }
+    requestAnimationFrame(draw);
+  }
+
+  function resetVisual() {
+    visNotes = [];
+    els.currentBeat.textContent = '0';
+    els.eqMeters.querySelectorAll('i').forEach(i => i.style.height = '6px');
+  }
+
+  let lastPulse = -1;
+  let flashTimer = null;
+  function flashPulse(pulse) {
+    lastPulse = pulse;
+    const beat = Math.floor(pulse / state.subdivision) + 1;
+    els.currentBeat.textContent = String(beat);
+    animateEq();
+  }
+
+  function animateEq() {
+    const bars = els.eqMeters.querySelectorAll('i');
+    bars.forEach((b, i) => {
+      const h = 8 + Math.random() * 20;
+      b.style.transition = 'height .09s ease';
+      b.style.height = h + 'px';
+      setTimeout(() => { b.style.transition = 'height .4s ease'; b.style.height = '6px'; }, 90);
+    });
+  }
+
+  function drawStatic() {
+    const w = canvas.width / dpr;
+    const h = canvas.height / dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    const cx = w / 2, cy = h / 2, R = Math.min(w, h) / 2 - 26;
+    const total = totalPulses();
+    drawRing(ctx, cx, cy, R, null);
+  }
+
+  function drawRing(ctx, cx, cy, R, activePulse) {
+    const total = totalPulses();
+    const step = (Math.PI * 2) / total;
+    const inner = R - 30;
+    // base circle
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.lineWidth = 12;
+    ctx.beginPath();
+    ctx.arc(cx, cy, inner - 6, 0, Math.PI * 2);
+    ctx.stroke();
+    // dots
+    for (let i = 0; i < total; i++) {
+      const a = -Math.PI / 2 + i * step;
+      const x = cx + Math.cos(a) * inner;
+      const y = cy + Math.sin(a) * inner;
+      const isBeat = pulseIsBeatStart(i);
+      const isDown = i === 0;
+      const isActive = activePulse === i;
+      const r = isBeat ? (isDown ? 13 : 9) : 5;
+      let color;
+      if (isActive) color = isDown ? '#f59e0b' : '#5eead4';
+      else if (isDown) color = 'rgba(245,158,11,0.55)';
+      else if (isBeat) color = 'rgba(94,234,212,0.4)';
+      else color = 'rgba(139,148,168,0.28)';
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      if (isActive) {
+        ctx.shadowBlur = 24;
+        ctx.shadowColor = isDown ? 'rgba(245,158,11,0.8)' : 'rgba(94,234,212,0.8)';
+      } else ctx.shadowBlur = 0;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+    // center pulse
+    if (activePulse !== null) {
+      const pulse = (total - activePulse % total) / total;
+      const pr = R * 0.28 * (0.75 + 0.25 * pulse);
+      ctx.beginPath();
+      ctx.arc(cx, cy, pr, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(94,234,212,0.5)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    // beat number in center
+    ctx.fillStyle = '#e8ecf4';
+    ctx.font = '700 ' + (R * 0.3) + 'px -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const beat = activePulse !== null ? (Math.floor(activePulse / state.subdivision) + 1) : total ? 0 : 0;
+    ctx.fillText(String(beat), cx, cy);
+  }
+
+  // ---------- Helpers ----------
+  function clampTempo() {
+    const range = state.isPro ? { min: 20, max: 300 } : { min: 40, max: 220 };
+    if (state.tempo < range.min) state.tempo = range.min;
+    if (state.tempo > range.max) state.tempo = range.max;
+    return range;
+  }
+
+  function updateTempoUI() {
+    const range = clampTempo();
+    els.tempoValue.textContent = String(state.tempo);
+    els.tempoRange.min = range.min;
+    els.tempoRange.max = range.max;
+    els.tempoRange.value = state.tempo;
+    els.tempoRange.style.setProperty('--fill',
+      ((state.tempo - range.min) / (range.max - range.min) * 100) + '%');
+  }
+
+  function setTempo(t) {
+    state.tempo = Math.round(Math.min(300, Math.max(20, t)));
+    clampTempo();
+    updateTempoUI();
+  }
+
+  function renderTimeSigChips() {
+    els.timeSigChips.innerHTML = '';
+    TIME_SIGS.forEach(sig => {
+      const b = document.createElement('button');
+      b.className = 'chip' + ((state.timeSig.num === sig.num && state.timeSig.den === sig.den) ? ' active' : '') + (sig.pro && !state.isPro ? ' locked' : '');
+      b.innerHTML = sig.num + '/' + sig.den + (sig.pro && !state.isPro ? '<span class="mini-lock"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5zm-3 8V7a3 3 0 1 1 6 0v3z"/></svg></span>' : '');
+      b.onclick = () => {
+        if (sig.pro && !state.isPro) { showOverlay(); return; }
+        state.timeSig = { num: sig.num, den: sig.den };
+        refresh();
+        if (state.isPlaying) { computeAccentPattern(); currentPulse = 0; }
+      };
+      els.timeSigChips.appendChild(b);
+    });
+    els.timeSigLabel.textContent = state.timeSig.num + ' / ' + state.timeSig.den;
+    els.totalBeat.textContent = '/ ' + state.timeSig.num;
+  }
+
+  function renderSoundChips() {
+    els.soundChips.innerHTML = '';
+    SOUNDS.forEach(s => {
+      const b = document.createElement('button');
+      b.className = 'chip' + (state.sound === s.id ? ' active' : '') + (s.pro && !state.isPro ? ' locked' : '');
+      b.innerHTML = s.name + (s.pro && !state.isPro ? '<span class="mini-lock"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5zm-3 8V7a3 3 0 1 1 6 0v3z"/></svg></span>' : '');
+      b.onclick = () => {
+        if (s.pro && !state.isPro) { showOverlay(); return; }
+        state.sound = s.id;
+        renderSoundChips();
+        if (state.isPlaying) { /* restart current osc? just apply next beats */ }
+      };
+      els.soundChips.appendChild(b);
+    });
+  }
+
+  function renderSubChips() {
+    els.subChips.innerHTML = '';
+    SUBS.forEach(s => {
+      const b = document.createElement('button');
+      b.className = 'chip' + (state.subdivision === s.id ? ' active' : '') + (s.pro && !state.isPro ? ' locked' : '');
+      b.innerHTML = s.name + (s.pro && !state.isPro ? '<span class="mini-lock"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a5 5 0 0 0-5 5v3H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1V7a5 5 0 0 0-5-5zm-3 8V7a3 3 0 1 1 6 0v3z"/></svg></span>' : '');
+      b.onclick = () => {
+        if (s.pro && !state.isPro) { showOverlay(); return; }
+        state.subdivision = s.id;
+        renderSubChips();
+        computeAccentPattern();
+        if (state.isPlaying) currentPulse = 0;
+        refreshVisual();
+      };
+      els.subChips.appendChild(b);
+    });
+    els.subLock.innerHTML = state.isPro ? '' : 'PRO';
+    els.subLock.style.display = state.isPro ? 'none' : 'inline-flex';
+  }
+
+  function refresh() {
+    renderTimeSigChips();
+    renderSoundChips();
+    renderSubChips();
+    computeAccentPattern();
+    updateTempoUI();
+  }
+
+  function refreshVisual() {
+    const c = canvas.getContext('2d');
+    const w = canvas.width / dpr, h = canvas.height / dpr;
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    c.clearRect(0, 0, w, h);
+    drawRing(c, w/2, h/2, Math.min(w,h)/2 - 26, null);
+  }
+
+  // ---------- Tap tempo ----------
+  let taps = [];
+  function tap() {
+    const now = performance.now();
+    const span = Date.now();
+    taps.push(now);
+    // keep last 5 taps
+    if (taps.length > 5) taps.shift();
+    if (taps.length >= 2) {
+      const avg = (taps[taps.length - 1] - taps[0]) / (taps.length - 1);
+      if (avg > 0) setTempo(60000 / avg);
+    }
+  }
+  els.tapBtn.addEventListener('click', () => ctx().resume && tap());
+  els.tapBtn.addEventListener('pointerdown', (e) => { /* small delay acceptable */ });
+  els.tapBtn.addEventListener('touchend', (e) => e.preventDefault(), { passive: false });
+
+  // ---------- Accent & volume ----------
+  function renderAccent() {
+    els.accentToggle.classList.toggle('active', state.accentOn);
+    els.accentToggle.textContent = state.accentOn ? '重音 开' : '重音 关';
+  }
+  els.accentToggle.addEventListener('click', () => {
+    state.accentOn = !state.accentOn;
+    computeAccentPattern();
+    renderAccent();
+  });
+
+  els.volumeRange.addEventListener('input', e => {
+    state.volume = Number(e.target.value) / 100;
+  });
+
+  // ---------- Pro modal ----------
+  function showOverlay() {
+    els.overlay.classList.add('show');
+  }
+  function closeOverlay() {
+    els.overlay.classList.remove('show');
+  }
+  els.buyBtn.addEventListener('click', () => {
+    unlockPro();
+    closeOverlay();
+    toast('已解锁 PRO，欢迎使用！');
+  });
+  els.closeSheet.addEventListener('click', closeOverlay);
+  els.overlay.addEventListener('click', (e) => { if (e.target === els.overlay) closeOverlay(); });
+  els.proBadge.addEventListener('click', () => {
+    if (state.isPro) toast('你已经拥有 PRO ✓');
+    else showOverlay();
+  });
+
+  function unlockPro() {
+    state.isPro = true;
+    try { localStorage.setItem('beatlock_pro', '1'); } catch(e){}
+    renderPro();
+    refresh();
+    updateTempoUI();
+  }
+  function loadPro() {
+    try { state.isPro = localStorage.getItem('beatlock_pro') === '1'; } catch(e){}
+  }
+  function renderPro() {
+    els.proBadge.classList.toggle('on', state.isPro);
+    els.proBadgeText.textContent = state.isPro ? 'PRO ✓' : 'PRO';
+  }
+
+  // ---------- Presets ----------
+  function getPresets() {
+    try { return JSON.parse(localStorage.getItem('beatlock_presets') || '[]'); } catch(e){ return []; }
+  }
+  function savePresets(arr) {
+    try { localStorage.setItem('beatlock_presets', JSON.stringify(arr)); } catch(e){}
+  }
+  els.savePreset.addEventListener('click', () => {
+    if (!state.isPro) { showOverlay(); return; }
+    const presets = getPresets();
+    if (presets.length >= 5) { toast('已达上限（5 个）。删除后再保存。'); return; }
+    const snapshot = {
+      t: state.tempo,
+      sig: state.timeSig,
+      sub: state.subdivision,
+      sound: state.sound,
+      acc: state.accentOn,
+      vol: state.volume
+    };
+    presets.push(snapshot);
+    savePresets(presets);
+    renderPresets();
+    toast('已保存当前设置为预设 ✓');
+  });
+
+  function renderPresets() {
+    els.presetList.innerHTML = '';
+    const presets = getPresets();
+    if (!state.isPro) {
+      const pill = document.createElement('span');
+      pill.className = 'preset-pill';
+      pill.innerHTML = '<span class="del">🔒</span> PRO 用户可保存 5 个预设';
+      pill.onclick = showOverlay;
+      els.presetList.appendChild(pill);
+      return;
+    }
+    if (!presets.length) {
+      els.presetList.innerHTML = '<span class="preset-pill" style="opacity:.6">暂无预设</span>';
+      return;
+    }
+    presets.forEach((p, i) => {
+      const pill = document.createElement('span');
+      pill.className = 'preset-pill';
+      const name = (p.sig.num + '/' + p.sig.den) + ' · ' + p.t + 'bpm';
+      pill.innerHTML = '<span>' + name + '</span><span class="del" data-i="' + i + '">×</span>';
+      pill.addEventListener('click', (e) => {
+        if (e.target.classList.contains('del')) {
+          const arr = getPresets();
+          arr.splice(Number(e.target.dataset.i), 1);
+          savePresets(arr);
+          renderPresets();
+          toast('已删除预设');
+          return;
+        }
+        state.tempo = p.t; state.timeSig = p.sig; state.subdivision = p.sub;
+        state.sound = p.sound; state.accentOn = p.acc; state.volume = p.vol;
+        els.volumeRange.value = Math.round(p.vol * 100);
+        refresh(); renderAccent();
+        if (state.isPlaying) { computeAccentPattern(); currentPulse = 0; }
+        toast('已载入预设');
+      });
+      els.presetList.appendChild(pill);
+    });
+  }
+
+  // ---------- Overlay selectors render toggle ----------
+  function renderLocked() {
+    renderTimeSigChips();
+    renderSoundChips();
+    renderSubChips();
+    renderPresets();
+  }
+
+  // ---------- Toast ----------
+  let toastTimer = null;
+  function toast(msg) {
+    els.toast.textContent = msg;
+    els.toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => els.toast.classList.remove('show'), 1800);
+  }
+
+  // ---------- Keyboard ----------
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setTempo(state.tempo + 1); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); setTempo(state.tempo - 1); }
+    else if (e.key === 't' || e.key === 'T') { tap(); }
+  });
+
+  // ---------- Controls wiring ----------
+  els.tempoMinus.addEventListener('click', () => setTempo(state.tempo - 1));
+  els.tempoPlus.addEventListener('click', () => setTempo(state.tempo + 1));
+  els.tempoRange.addEventListener('input', e => setTempo(Number(e.target.value)));
+  els.tempoValue.addEventListener('dblclick', () => {
+    const v = prompt('输入 BPM（20–300）：', state.tempo);
+    if (v) setTempo(Number(v));
+  });
+  els.playBtn.addEventListener('click', togglePlay);
+
+  // ---------- Init ----------
+  function init() {
+    loadPro();
+    renderPro();
+    refresh();
+    renderAccent();
+    sizeCanvas();
+    draw();
+    updateTempoUI();
+    window.addEventListener('resize', () => { sizeCanvas(); refreshVisual(); });
+  }
+  init();
+})();
+</script>
+</body>
+</html>
