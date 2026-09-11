@@ -1,7 +1,14 @@
-/* 准拍 · 离线缓存 Service Worker */
-const CACHE = 'zhunpai-v2';
+/* 准拍 · 离线缓存 Service Worker
+ *
+ * 策略：
+ *  - 页面（导航）：网络优先 → 保证用户总能拿到最新版本；离线时回退到缓存
+ *  - 静态资源（图标等）：缓存优先
+ *
+ * 注意：导航请求（mode === 'navigate'）不能直接传给 fetch()，会抛 TypeError，
+ * 所以这里统一用 fetch(url) 而不是 fetch(request)。
+ */
+const CACHE = 'zhunpai-v3';
 const ASSETS = [
-  './',
   './index.html',
   './privacy.html',
   './terms.html',
@@ -15,7 +22,6 @@ const ASSETS = [
 self.addEventListener('install', (e) => {
   e.waitUntil(
     caches.open(CACHE)
-      // 逐个缓存：单个文件失败不影响整体安装
       .then((c) => Promise.all(ASSETS.map((u) => c.add(u).catch(() => {}))))
       .then(() => self.skipWaiting())
   );
@@ -34,23 +40,38 @@ self.addEventListener('fetch', (e) => {
   if (req.method !== 'GET') return;
   if (!req.url.startsWith(self.location.origin)) return;
 
-  e.respondWith(
-    caches.match(req).then((hit) => {
-      if (hit) return hit;
-      return fetch(req)
+  const isPage = req.mode === 'navigate' || req.destination === 'document';
+
+  if (isPage) {
+    // 页面：网络优先，离线回退缓存
+    e.respondWith(
+      fetch(req.url, { cache: 'no-store' })
         .then((res) => {
-          // 只缓存「成功的同源响应」，避免把 404 / 错误页写进缓存
-          if (res && res.ok && res.type === 'basic') {
+          if (res && res.ok) {
             const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+            caches.open(CACHE).then((c) => c.put(req.url, copy)).catch(() => {});
           }
           return res;
         })
-        .catch((err) => {
-          // 离线兜底：只有「页面导航」且该页未缓存时，才退回首页
-          if (req.mode === 'navigate') return caches.match('./index.html');
-          throw err;
-        });
+        .catch(() =>
+          caches.match(req.url, { ignoreSearch: true })
+            .then((hit) => hit || caches.match('./index.html'))
+        )
+    );
+    return;
+  }
+
+  // 静态资源：缓存优先，只缓存成功响应
+  e.respondWith(
+    caches.match(req).then((hit) => {
+      if (hit) return hit;
+      return fetch(req.url).then((res) => {
+        if (res && res.ok && res.type === 'basic') {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+        }
+        return res;
+      });
     })
   );
 });

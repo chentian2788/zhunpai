@@ -1523,10 +1523,16 @@
 </script>
 <script>
   // PWA：离线缓存（file:// 打开、以及打包成 App 时自动跳过）
-  var isNativeApp = !!(window.Capacitor || window.webkit && window.webkit.messageHandlers);
+  var isNativeApp = !!(window.Capacitor || (window.webkit && window.webkit.messageHandlers));
   if (!isNativeApp && 'serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('./sw.js').catch(function () {});
+      navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' })
+        .then(function (reg) {
+          // 主动检查更新，避免用户卡在旧版本
+          reg.update().catch(function () {});
+          setInterval(function () { reg.update().catch(function () {}); }, 3600000);
+        })
+        .catch(function () {});
     });
   }
 </script>
