@@ -290,6 +290,8 @@
 
   .footnote { text-align: center; font-size: 12px; color: var(--muted); margin-top: 18px; line-height: 1.6; }
   .footnote b { color: var(--accent); }
+  .footnote a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+  .footnote a:hover { color: var(--accent); }
 
   /* Modal */
   .overlay {
@@ -496,7 +498,8 @@
 
   <p class="footnote">
     免费版即可完整使用：节拍、预备拍、常用拍号与音色。<br>
-    <b>PRO</b> 一次买断 ¥6，解锁渐进变速、全部拍号 / 音色 / 细分与预设。
+    <b>PRO</b> 一次买断 ¥6，解锁渐进变速、全部拍号 / 音色 / 细分与预设。<br>
+    <a href="./privacy.html">隐私政策</a> · <a href="./terms.html">服务条款</a>
   </p>
 </div>
 
@@ -1295,9 +1298,9 @@
     els.overlay.classList.remove('show');
   }
   els.buyBtn.addEventListener('click', () => {
-    unlockPro();
-    closeOverlay();
-    toast('已解锁 PRO，欢迎使用！');
+    purchasePro().then(function (ok) {
+      if (ok) { closeOverlay(); toast('已解锁 PRO，欢迎使用！'); }
+    });
   });
   els.closeSheet.addEventListener('click', closeOverlay);
   els.overlay.addEventListener('click', (e) => { if (e.target === els.overlay) closeOverlay(); });
@@ -1313,6 +1316,35 @@
     refresh();
     updateTempoUI();
   }
+
+  // ---------- 支付 ----------
+  // 上架前：在 App Store Connect / Google Play Console 建立同名商品（价格档对应 ¥6），
+  // 再把本地的演示解锁替换为真实内购回调。调用 purchasePro() 即可。
+  const PRO_PRODUCT_ID = 'com.zhunpai.app.pro';
+  async function purchasePro() {
+    const cap = window.Capacitor;
+    const plugins = (cap && cap.Plugins) || {};
+    // 接入任一内购插件后，这里会自动走真实购买流程
+    const store = plugins.StoreKit || plugins.InAppPurchases || plugins.NativePurchases;
+    if (store && typeof store.purchase === 'function') {
+      try {
+        const res = await store.purchase({ productId: PRO_PRODUCT_ID });
+        if (res && (res.transactionId || res.productId || res.state === 1)) {
+          unlockPro();
+          return true;
+        }
+        toast('购买未完成');
+        return false;
+      } catch (e) {
+        toast('购买未完成');
+        return false;
+      }
+    }
+    // ⚠️ 演示模式：本地直接解锁。提交商店前必须接入真实内购，否则违反 App Store 3.1.1。
+    unlockPro();
+    return true;
+  }
+
   function loadPro() {
     try { state.isPro = localStorage.getItem('zhunpai_pro') === '1'; } catch(e){}
   }
