@@ -330,6 +330,12 @@
     color: var(--muted); font-size: 14px; cursor: pointer; padding: 6px;
   }
   .sheet .close:hover { color: var(--text); }
+  .sheet .restore {
+    margin-top: 10px; width: 100%; background: none; border: none;
+    color: var(--accent); font-size: 14px; font-weight: 600;
+    cursor: pointer; padding: 6px;
+  }
+  .sheet .restore:hover { text-decoration: underline; }
 
   .toast {
     position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%) translateY(30px);
@@ -521,8 +527,9 @@
       <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>保存 / 加载你的预设，最多 5 个</li>
     </ul>
     <button class="cta" id="buyBtn">立即解锁 · ¥6</button>
+    <button class="restore" id="restoreBtn">恢复购买</button>
     <button class="close" id="closeSheet">暂不需要</button>
-    <p class="note">当前为本地演示版，解锁即在本机永久生效。<br>上架后通过 App Store / 微信支付完成真实购买。</p>
+    <p class="note" id="payNote">一次买断，永久使用，无订阅。<br>App 内通过 App Store / Google Play 完成付款。</p>
   </div>
 </div>
 
@@ -588,7 +595,7 @@
     timeSigChips: $('timeSigChips'), soundChips: $('soundChips'), subChips: $('subChips'),
     accentToggle: $('accentToggle'),
     volumeRange: $('volumeRange'),
-    overlay: $('overlay'), buyBtn: $('buyBtn'), closeSheet: $('closeSheet'),
+    overlay: $('overlay'), buyBtn: $('buyBtn'), restoreBtn: $('restoreBtn'), closeSheet: $('closeSheet'),
     proBadge: $('proBadge'), proBadgeText: $('proBadgeText'),
     savePreset: $('savePreset'), presetList: $('presetList'),
     subLock: $('subLock'), toast: $('toast'),
@@ -1303,6 +1310,7 @@
     });
   });
   els.closeSheet.addEventListener('click', closeOverlay);
+  els.restoreBtn.addEventListener('click', function () { restorePro(); });
   els.overlay.addEventListener('click', (e) => { if (e.target === els.overlay) closeOverlay(); });
   els.proBadge.addEventListener('click', () => {
     if (state.isPro) toast('你已经拥有 PRO ✓');
@@ -1317,32 +1325,107 @@
     updateTempoUI();
   }
 
-  // ---------- 支付 ----------
-  // 上架前：在 App Store Connect / Google Play Console 建立同名商品（价格档对应 ¥6），
-  // 再把本地的演示解锁替换为真实内购回调。调用 purchasePro() 即可。
+  // ---------- 内购（cordova-plugin-purchase / CdvPurchase） ----------
+  // 商品 ID：上架前要在 App Store Connect 和 Google Play Console 各建一个同名商品，
+  // 类型＝非消耗型（Non-Consumable），价格档对应 ¥6。
   const PRO_PRODUCT_ID = 'com.zhunpai.app.pro';
-  async function purchasePro() {
+  let storeReady = false;
+  let storeImpl = null;
+
+  // 只在原生 App 里启用内购；网页版走演示解锁
+  function nativeStore() {
+    const CDP = window.CdvPurchase;
     const cap = window.Capacitor;
-    const plugins = (cap && cap.Plugins) || {};
-    // 接入任一内购插件后，这里会自动走真实购买流程
-    const store = plugins.StoreKit || plugins.InAppPurchases || plugins.NativePurchases;
-    if (store && typeof store.purchase === 'function') {
+    if (!CDP || !CDP.store) return null;
+    if (!cap || typeof cap.isNativePlatform !== 'function' || !cap.isNativePlatform()) return null;
+    return CDP;
+  }
+
+  function currentPlatform(CDP) {
+    const p = (window.Capacitor && window.Capacitor.getPlatform) ? window.Capacitor.getPlatform() : '';
+    return p === 'ios' ? CDP.Platform.APPLE_APPSTORE : CDP.Platform.GOOGLE_PLAY;
+  }
+
+  // 以商店状态为准补一次本地解锁（换机 / 重装 / 恢复购买都会走到这里）
+  function refreshFromStore() {
+    const CDP = storeImpl;
+    if (!CDP) return;
+    try {
+      const owned = CDP.store.owned({ id: PRO_PRODUCT_ID }) ||
+                    CDP.store.owned({ id: PRO_PRODUCT_ID, platform: currentPlatform(CDP) });
+      if (owned && !state.isPro) unlockPro();
+    } catch (e) {}
+  }
+
+  async function initStore() {
+    const CDP = nativeStore();
+    if (!CDP) {
+      // 网页版：不初始化内购，直接说明这是体验版
+      const note = document.getElementById('payNote');
+      if (note) note.innerHTML = '网页版为体验版，点下方按钮可直接免费解锁 PRO。<br>正式购买请使用手机 App。';
+      const btn = document.getElementById('buyBtn');
+      if (btn) btn.textContent = '免费体验 PRO';
+      return;
+    }
+    storeImpl = CDP;
+    try {
+      CDP.store.register([
+        { id: PRO_PRODUCT_ID, type: CDP.ProductType.NON_CONSUMABLE, platform: CDP.Platform.APPLE_APPSTORE },
+        { id: PRO_PRODUCT_ID, type: CDP.ProductType.NON_CONSUMABLE, platform: CDP.Platform.GOOGLE_PLAY },
+      ]);
+      // 购买通过 → 解锁并结束交易
+      CDP.store.when().approved(function (tx) {
+        unlockPro();
+        if (tx && typeof tx.finish === 'function') tx.finish();
+      });
+      // 商品信息 / 收据就绪 → 同步一次拥有状态
+      CDP.store.when().productUpdated(function () { refreshFromStore(); });
+      CDP.store.when().receiptsReady(function () { refreshFromStore(); });
+
+      const errors = await CDP.store.initialize([
+        CDP.Platform.APPLE_APPSTORE,
+        CDP.Platform.GOOGLE_PLAY,
+      ]);
+      if (errors && errors.length) console.warn('[store] 初始化告警', errors);
+      storeReady = true;
+      refreshFromStore();
+    } catch (e) {
+      console.warn('[store] 初始化失败', e);
+    }
+  }
+
+  async function purchasePro() {
+    const CDP = storeImpl;
+    if (CDP && storeReady) {
       try {
-        const res = await store.purchase({ productId: PRO_PRODUCT_ID });
-        if (res && (res.transactionId || res.productId || res.state === 1)) {
-          unlockPro();
-          return true;
-        }
-        toast('购买未完成');
-        return false;
+        const product = CDP.store.get(PRO_PRODUCT_ID, currentPlatform(CDP));
+        const offer = product && product.getOffer();
+        if (!offer) { toast('商品还没加载好，请稍后重试'); return false; }
+        const err = await offer.order();
+        if (err) { toast(err.message || '购买未完成'); return false; }
+        // 成功时 approved 回调里已经解锁
+        if (!state.isPro) toast('购买处理中…');
+        return state.isPro;
       } catch (e) {
         toast('购买未完成');
         return false;
       }
     }
-    // ⚠️ 演示模式：本地直接解锁。提交商店前必须接入真实内购，否则违反 App Store 3.1.1。
+    // 网页版 / 未初始化：演示解锁（上架前请在原生环境验证真实购买）
     unlockPro();
     return true;
+  }
+
+  async function restorePro() {
+    const CDP = storeImpl;
+    if (!CDP || !storeReady) { toast('当前版本无需恢复购买'); return; }
+    try {
+      await CDP.store.restorePurchases();
+      refreshFromStore();
+      toast(state.isPro ? '已恢复购买 ✓' : '没有找到可恢复的购买');
+    } catch (e) {
+      toast('恢复失败，请稍后再试');
+    }
   }
 
   function loadPro() {
@@ -1516,6 +1599,7 @@
     draw();
     updateTempoUI();
     els.volumeRange.value = Math.round(state.volume * 100);
+    initStore();
     window.addEventListener('resize', () => { sizeCanvas(); refreshVisual(); });
   }
   init();
