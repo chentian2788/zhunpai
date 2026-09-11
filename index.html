@@ -264,6 +264,23 @@
   .more-panel { display: none; flex-direction: column; gap: 14px; }
   .more-panel.open { display: flex; }
 
+  /* Practice timer & log */
+  .practice-line { text-align: center; font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .group-label .hint { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: none; letter-spacing: 0; }
+  .stats { display: flex; gap: 10px; }
+  .stats .stat {
+    flex: 1; background: #0f1420; border: 1px solid var(--line);
+    border-radius: 14px; padding: 10px 6px; text-align: center;
+  }
+  .stats .k { font-size: 11px; color: var(--muted); font-weight: 700; }
+  .stats .v { font-size: 15px; font-weight: 800; margin-top: 3px; font-variant-numeric: tabular-nums; }
+  .spark { display: flex; align-items: flex-end; gap: 5px; height: 46px; margin-top: 10px; }
+  .spark i {
+    flex: 1; min-height: 4px; border-radius: 4px 4px 0 0;
+    background: linear-gradient(180deg, var(--accent), var(--accent-2));
+  }
+  .spark i.empty { background: #232b3e; }
+
   .footnote { text-align: center; font-size: 12px; color: var(--muted); margin-top: 18px; line-height: 1.6; }
   .footnote b { color: var(--accent); }
 
@@ -404,7 +421,9 @@
         <span style="width:58px"></span>
       </div>
 
-      <button class="more-toggle" id="moreToggle">更多设置（音色 · 细分 · 音量 · 预设）</button>
+      <div class="practice-line" id="practiceLine">本次 00:00 · 今日 00:00</div>
+
+      <button class="more-toggle" id="moreToggle">更多设置（音色 · 细分 · 音量 · 练习记录 · 预设）</button>
 
       <div class="more-panel" id="morePanel">
         <div class="group">
@@ -432,6 +451,26 @@
           <div class="chips">
             <button class="chip" id="accentToggle">重音 开</button>
           </div>
+        </div>
+
+        <div class="group">
+          <div class="group-label">震动反馈 <span class="hint" id="hapticNote"></span></div>
+          <div class="chips">
+            <button class="chip" id="hapticToggle">震动 开</button>
+          </div>
+        </div>
+
+        <div class="group">
+          <div class="group-label">练习记录 <span class="lock" id="practiceLock"></span></div>
+          <div id="practiceStatsWrap" style="display:none">
+            <div class="stats">
+              <div class="stat"><div class="k">今日</div><div class="v" id="stToday">0 秒</div></div>
+              <div class="stat"><div class="k">连续</div><div class="v" id="stStreak">0 天</div></div>
+              <div class="stat"><div class="k">累计</div><div class="v" id="stTotal">0 秒</div></div>
+            </div>
+            <div class="spark" id="practiceSpark"></div>
+          </div>
+          <button class="chip" id="practiceUnlock" style="display:none">解锁 PRO 查看打卡记录与统计</button>
         </div>
 
         <div class="presets">
@@ -464,6 +503,7 @@
     <div class="price"><b>¥6</b><span> · 一次买断，永久使用</span></div>
     <ul class="benefits">
       <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>渐进变速：每几小节自动提速，练琴提速神器</li>
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>练习打卡记录：连续天数、累计时长、近 7 天曲线</li>
       <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>全部拍号：5/4、7/8、9/8、12/8 等</li>
       <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>全部音色：鼓、鼓边、牛铃、木鱼</li>
       <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>三连音 / 十六分音符细分</li>
@@ -493,6 +533,8 @@
     accentOn: true,
     countInBars: 0,          // 0 = off, 1 or 2 bars of count-in
     ramp: { on: false, start: 120, target: 140, bars: 4, step: 2 },
+    haptics: true,           // vibration on beats (Android / packaged app)
+    practice: { days: {} },  // 'YYYY-MM-DD' -> seconds practised
     isPro: false,
     accentPattern: []
   };
@@ -544,7 +586,11 @@
     quickTempoChips: $('quickTempoChips'), countInChips: $('countInChips'),
     rampToggle: $('rampToggle'), rampTarget: $('rampTarget'),
     rampBars: $('rampBars'), rampStep: $('rampStep'), rampLock: $('rampLock'),
-    moreToggle: $('moreToggle'), morePanel: $('morePanel')
+    moreToggle: $('moreToggle'), morePanel: $('morePanel'),
+    practiceLine: $('practiceLine'), hapticToggle: $('hapticToggle'), hapticNote: $('hapticNote'),
+    practiceLock: $('practiceLock'), practiceStatsWrap: $('practiceStatsWrap'),
+    practiceUnlock: $('practiceUnlock'), practiceSpark: $('practiceSpark'),
+    stToday: $('stToday'), stStreak: $('stStreak'), stTotal: $('stTotal')
   };
 
   // ---------- Audio engine (lookahead scheduler, sample-accurate) ----------
@@ -737,6 +783,8 @@
     const c = ctx();
     currentPulse = 0;
     barsPlayed = 0;
+    sessionSeconds = 0;
+    renderPracticeLine();
     if (state.ramp.on && state.isPro) {
       state.tempo = Math.round(state.ramp.start) || state.tempo;
       updateTempoUI();
@@ -752,6 +800,9 @@
     if (schedTimer) { clearTimeout(schedTimer); schedTimer = null; }
     countInLeft = 0;
     countInTotal = 0;
+    savePractice();
+    renderPracticeLine();
+    if (state.isPro) renderPracticeStats();
     setPlaying(false);
     if (audioCtx) audioCtx.suspend();
   }
@@ -808,14 +859,20 @@
 
   let lastPulse = -1;
   let flashTimer = null;
+  function haptic(ms) {
+    if (!state.haptics) return;
+    try { if (typeof navigator.vibrate === 'function') navigator.vibrate(ms); } catch(e){}
+  }
   function flashPulse(pulse, countIdx) {
     lastPulse = pulse;
     if (countIdx !== undefined && countIdx !== null) {
       // count-in: show a countdown in the centre
       els.currentBeat.textContent = String(countInTotal - countIdx);
       animateEq();
+      haptic(12);
       return;
     }
+    if (pulse % state.subdivision === 0) haptic(pulse === 0 ? 16 : 10);
     const beat = Math.floor(pulse / state.subdivision) + 1;
     els.currentBeat.textContent = String(beat);
     animateEq();
@@ -975,7 +1032,7 @@
       localStorage.setItem(SETTINGS_KEY, JSON.stringify({
         tempo: state.tempo, sig: state.timeSig, sub: state.subdivision,
         sound: state.sound, vol: state.volume, acc: state.accentOn,
-        countIn: state.countInBars, ramp: state.ramp
+        countIn: state.countInBars, ramp: state.ramp, haptics: state.haptics
       }));
     } catch(e){}
   }
@@ -991,6 +1048,96 @@
     if (typeof s.acc === 'boolean') state.accentOn = s.acc;
     if (typeof s.countIn === 'number') state.countInBars = s.countIn;
     if (s.ramp) state.ramp = Object.assign(state.ramp, s.ramp);
+    if (typeof s.haptics === 'boolean') state.haptics = s.haptics;
+  }
+
+  // ---------- 练习计时与打卡记录 ----------
+  const PRACTICE_KEY = 'zhunpai_practice';
+  let sessionSeconds = 0;
+  let practiceSaveTicks = 0;
+
+  function todayKey(d) {
+    const x = d || new Date();
+    return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0');
+  }
+  function fmtClock(sec) {
+    sec = Math.max(0, Math.floor(sec));
+    const m = Math.floor(sec / 60), s = sec % 60;
+    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  }
+  function fmtDur(sec) {
+    sec = Math.max(0, Math.floor(sec));
+    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+    if (h > 0) return h + ' 小时 ' + m + ' 分';
+    if (m > 0) return m + ' 分 ' + String(s).padStart(2, '0') + ' 秒';
+    return s + ' 秒';
+  }
+  function todaySeconds() { return state.practice.days[todayKey()] || 0; }
+  function totalPractice() {
+    const d = state.practice.days;
+    return Object.keys(d).reduce((a, k) => a + (d[k] || 0), 0);
+  }
+  function streakDays() {
+    const d = state.practice.days;
+    let n = 0;
+    const cur = new Date();
+    if (!d[todayKey(cur)]) cur.setDate(cur.getDate() - 1);
+    while (d[todayKey(cur)] > 0) { n++; cur.setDate(cur.getDate() - 1); }
+    return n;
+  }
+  function loadPractice() {
+    try {
+      const p = JSON.parse(localStorage.getItem(PRACTICE_KEY) || 'null');
+      if (p && p.days) state.practice = { days: p.days };
+    } catch(e){}
+  }
+  function savePractice() {
+    try { localStorage.setItem(PRACTICE_KEY, JSON.stringify(state.practice)); } catch(e){}
+  }
+  function renderPracticeLine() {
+    els.practiceLine.textContent = '本次 ' + fmtClock(sessionSeconds) + ' · 今日 ' + fmtClock(todaySeconds());
+  }
+  function renderPracticeStats() {
+    els.stToday.textContent = fmtDur(todaySeconds());
+    els.stStreak.textContent = streakDays() + ' 天';
+    els.stTotal.textContent = fmtDur(totalPractice());
+    const vals = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      vals.push(state.practice.days[todayKey(d)] || 0);
+    }
+    const max = Math.max(1, ...vals);
+    els.practiceSpark.innerHTML = vals
+      .map(v => '<i class="' + (v > 0 ? '' : 'empty') + '" style="height:' + Math.max(4, Math.round(v / max * 100)) + '%"></i>')
+      .join('');
+  }
+  function renderPractice() {
+    const locked = !state.isPro;
+    els.practiceLock.textContent = locked ? 'PRO' : '';
+    els.practiceLock.style.display = locked ? 'inline-flex' : 'none';
+    els.practiceStatsWrap.style.display = locked ? 'none' : 'block';
+    els.practiceUnlock.style.display = locked ? 'inline-flex' : 'none';
+    if (!locked) renderPracticeStats();
+  }
+  function practiceTick() {
+    if (!state.isPlaying) return;
+    sessionSeconds++;
+    const k = todayKey();
+    state.practice.days[k] = (state.practice.days[k] || 0) + 1;
+    practiceSaveTicks++;
+    if (practiceSaveTicks >= 5) { practiceSaveTicks = 0; savePractice(); }
+    renderPracticeLine();
+    if (state.isPro) renderPracticeStats();
+  }
+  setInterval(practiceTick, 1000);
+
+  // ---------- 震动反馈 ----------
+  function renderHaptic() {
+    els.hapticToggle.classList.toggle('active', state.haptics);
+    els.hapticToggle.textContent = state.haptics ? '震动 开' : '震动 关';
+    const supported = typeof navigator.vibrate === 'function';
+    els.hapticNote.textContent = supported ? '' : '（此浏览器不支持，打包后可用）';
   }
 
   function renderTimeSigChips() {
@@ -1052,6 +1199,7 @@
     renderSoundChips();
     renderSubChips();
     renderRamp();
+    renderPractice();
     computeAccentPattern();
     updateTempoUI();
     scheduleSave();
@@ -1253,8 +1401,16 @@
   // 更多设置面板
   els.moreToggle.addEventListener('click', () => {
     const open = els.morePanel.classList.toggle('open');
-    els.moreToggle.textContent = open ? '收起设置 ▲' : '更多设置（音色 · 细分 · 音量 · 预设）';
+    els.moreToggle.textContent = open ? '收起设置 ▲' : '更多设置（音色 · 细分 · 音量 · 练习记录 · 预设）';
   });
+
+  els.hapticToggle.addEventListener('click', () => {
+    state.haptics = !state.haptics;
+    renderHaptic();
+    scheduleSave();
+    haptic(22);
+  });
+  els.practiceUnlock.addEventListener('click', showOverlay);
 
   // 渐进变速
   els.rampToggle.addEventListener('click', () => {
@@ -1276,11 +1432,14 @@
   function init() {
     loadPro();
     loadSettings();
+    loadPractice();
     renderPro();
     renderQuickTempos();
     renderCountInChips();
     refresh();
     renderAccent();
+    renderHaptic();
+    renderPracticeLine();
     sizeCanvas();
     draw();
     updateTempoUI();
