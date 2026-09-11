@@ -1526,7 +1526,7 @@
   var isNativeApp = !!(window.Capacitor || (window.webkit && window.webkit.messageHandlers));
   if (!isNativeApp && 'serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' })
+      navigator.serviceWorker.register('./sw2.js', { updateViaCache: 'none' })
         .then(function (reg) {
           // 主动检查更新，避免用户卡在旧版本
           reg.update().catch(function () {});
