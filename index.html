@@ -842,18 +842,33 @@
     canvas.height = s * dpr;
   }
 
-  function draw() {
-    if (!audioCtx) {
-      // idle state: draw static ring
-      drawStatic();
-      requestAnimationFrame(draw);
-      return;
-    }
-    const now = audioCtx.currentTime;
-    // pop visual notes due
-    while (visNotes.length && visNotes[0].time <= now) {
-      const v = visNotes.shift();
-      flashPulse(v.pulse, v.countIdx);
+  let flashState = { idx: -1, at: 0 };
+  let lastFrame = 0;
+
+  // 当前小节内的进度（0~1），用于外圈进度弧
+  function currentProgress() {
+    if (!state.isPlaying || !audioCtx || countInLeft > 0) return 0;
+    const total = totalPulses();
+    const pulseDur = (60 / state.tempo) / state.subdivision;
+    const remain = Math.max(0, nextPulseTime - audioCtx.currentTime);
+    const frac = Math.max(0, Math.min(1, 1 - remain / pulseDur));
+    const idx = Math.max(0, flashState.idx);
+    return Math.max(0, Math.min(1, (idx + frac) / total));
+  }
+
+  function draw(ts) {
+    const playing = !!audioCtx && state.isPlaying;
+    // 播放时每帧重绘；静止时降到约 4fps 省电
+    if (!ts || playing || ts - lastFrame > 250) {
+      lastFrame = ts || 0;
+      if (audioCtx) {
+        const now = audioCtx.currentTime;
+        while (visNotes.length && visNotes[0].time <= now) {
+          const v = visNotes.shift();
+          flashPulse(v.pulse, v.countIdx);
+        }
+      }
+      renderCanvas();
     }
     requestAnimationFrame(draw);
   }
@@ -872,6 +887,7 @@
   }
   function flashPulse(pulse, countIdx) {
     lastPulse = pulse;
+    flashState = { idx: pulse, at: performance.now() };
     if (countIdx !== undefined && countIdx !== null) {
       // count-in: show a countdown in the centre
       els.currentBeat.textContent = String(countInTotal - countIdx);
@@ -895,68 +911,89 @@
     });
   }
 
-  function drawStatic() {
+  // 表盘：外圈轨道 + 进度弧 + 拍点 + 中央大数字
+  function renderCanvas() {
     const w = canvas.width / dpr;
     const h = canvas.height / dpr;
     const ctx = canvas.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
-    const cx = w / 2, cy = h / 2, R = Math.min(w, h) / 2 - 26;
-    const total = totalPulses();
-    drawRing(ctx, cx, cy, R, null);
-  }
 
-  function drawRing(ctx, cx, cy, R, activePulse) {
+    const cx = w / 2, cy = h / 2;
+    const R = Math.min(w, h) / 2 - 16;
+    const trackR = R - 9;
+    const dotR = R - 44;
     const total = totalPulses();
     const step = (Math.PI * 2) / total;
-    const inner = R - 30;
-    // base circle
-    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-    ctx.lineWidth = 12;
+    const activeIdx = ((flashState.idx % total) + total) % total;
+
+    // 轨道
     ctx.beginPath();
-    ctx.arc(cx, cy, inner - 6, 0, Math.PI * 2);
+    ctx.arc(cx, cy, trackR, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+    ctx.lineWidth = 10;
     ctx.stroke();
-    // dots
+
+    // 进度弧：一小节走一圈
+    const prog = currentProgress();
+    if (prog > 0.002) {
+      const g = ctx.createLinearGradient(0, 0, w, h);
+      g.addColorStop(0, '#5eead4');
+      g.addColorStop(0.5, '#22d3ee');
+      g.addColorStop(1, '#7c3aed');
+      ctx.beginPath();
+      ctx.arc(cx, cy, trackR, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * prog);
+      ctx.strokeStyle = g;
+      ctx.lineWidth = 10;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+      ctx.lineCap = 'butt';
+    }
+
+    // 中央底盘，避免中间发空
+    ctx.beginPath();
+    ctx.arc(cx, cy, Math.max(24, dotR - 24), 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.055)';
+    ctx.fill();
+
+    // 拍点
+    const now = performance.now();
     for (let i = 0; i < total; i++) {
       const a = -Math.PI / 2 + i * step;
-      const x = cx + Math.cos(a) * inner;
-      const y = cy + Math.sin(a) * inner;
-      const isBeat = pulseIsBeatStart(i);
+      const x = cx + Math.cos(a) * dotR;
+      const y = cy + Math.sin(a) * dotR;
+      const isBeat = i % state.subdivision === 0;
       const isDown = i === 0;
-      const isActive = activePulse === i;
-      const r = isBeat ? (isDown ? 13 : 9) : 5;
+      const isActive = state.isPlaying && i === activeIdx;
+      const flash = isActive ? Math.exp(-(now - flashState.at) / 170) : 0;
+      const base = isDown ? 7.5 : (isBeat ? 6 : 3.4);
+      const r = base * (1 + 0.9 * flash);
       let color;
-      if (isActive) color = isDown ? '#f59e0b' : '#5eead4';
+      if (flash > 0.05) color = isDown ? '#f59e0b' : '#5eead4';
       else if (isDown) color = 'rgba(245,158,11,0.55)';
       else if (isBeat) color = 'rgba(94,234,212,0.4)';
-      else color = 'rgba(139,148,168,0.28)';
+      else color = 'rgba(139,148,168,0.3)';
+      if (flash > 0.02) { ctx.shadowBlur = 26 * flash; ctx.shadowColor = color; }
       ctx.beginPath();
       ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.fillStyle = color;
-      if (isActive) {
-        ctx.shadowBlur = 24;
-        ctx.shadowColor = isDown ? 'rgba(245,158,11,0.8)' : 'rgba(94,234,212,0.8)';
-      } else ctx.shadowBlur = 0;
       ctx.fill();
       ctx.shadowBlur = 0;
     }
-    // center pulse
-    if (activePulse !== null) {
-      const pulse = (total - activePulse % total) / total;
-      const pr = R * 0.28 * (0.75 + 0.25 * pulse);
-      ctx.beginPath();
-      ctx.arc(cx, cy, pr, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(94,234,212,0.5)';
-      ctx.lineWidth = 2;
-      ctx.stroke();
-    }
-    // beat number in center
-    ctx.fillStyle = '#e8ecf4';
-    ctx.font = '700 ' + (R * 0.3) + 'px -apple-system, sans-serif';
+
+    // 中央大数字：播放时显示第几拍，停止时显示当前速度
+    const playing = state.isPlaying;
+    const main = playing
+      ? String(Math.floor(activeIdx / state.subdivision) + 1)
+      : String(state.tempo);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const beat = activePulse !== null ? (Math.floor(activePulse / state.subdivision) + 1) : total ? 0 : 0;
-    ctx.fillText(String(beat), cx, cy);
+    ctx.fillStyle = '#e8ecf4';
+    ctx.font = '800 ' + Math.round(R * 0.62) + 'px -apple-system, BlinkMacSystemFont, system-ui, sans-serif';
+    ctx.fillText(main, cx, cy - R * 0.07);
+    ctx.fillStyle = 'rgba(139,148,168,0.95)';
+    ctx.font = '700 ' + Math.round(R * 0.13) + 'px -apple-system, BlinkMacSystemFont, system-ui, sans-serif';
+    ctx.fillText(playing ? '拍' : 'BPM', cx, cy + R * 0.34);
   }
 
   // ---------- Helpers ----------
@@ -1213,11 +1250,7 @@
   }
 
   function refreshVisual() {
-    const c = canvas.getContext('2d');
-    const w = canvas.width / dpr, h = canvas.height / dpr;
-    c.setTransform(dpr, 0, 0, dpr, 0, 0);
-    c.clearRect(0, 0, w, h);
-    drawRing(c, w/2, h/2, Math.min(w,h)/2 - 26, null);
+    renderCanvas();
   }
 
   // ---------- Tap tempo ----------
@@ -1457,8 +1490,9 @@
 })();
 </script>
 <script>
-  // PWA：离线缓存（file:// 打开时自动跳过）
-  if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+  // PWA：离线缓存（file:// 打开、以及打包成 App 时自动跳过）
+  var isNativeApp = !!(window.Capacitor || window.webkit && window.webkit.messageHandlers);
+  if (!isNativeApp && 'serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
     window.addEventListener('load', function () {
       navigator.serviceWorker.register('./sw.js').catch(function () {});
     });
